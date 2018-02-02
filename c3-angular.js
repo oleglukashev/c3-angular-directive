@@ -38,7 +38,8 @@ angular.module('gridshore.c3js.chart')
  */
 function ChartAxes () {
     var axesLinker = function (scope, element, attrs, chartCtrl) {
-        var x = attrs.valuesX;
+        var x = attrs.valuesX,
+            xsItems;
         if (x) {
             chartCtrl.addXAxisValues(x);
         }
@@ -48,7 +49,7 @@ function ChartAxes () {
         if (xs) {
             xsItems = xs.split(",");
             for (var xsI in xsItems) {
-                xsItem = xsItems[xsI].split(":");
+                var xsItem = xsItems[xsI].split(":");
                 xsValues[xsItem[0]] = xsItem[1];
             }
             chartCtrl.addXSValues(xsValues);
@@ -901,6 +902,9 @@ function C3Chart ($timeout) {
         if (initialConfig) {
             chartCtrl.addInitialConfig(initialConfig);
         }
+        if (attrs.axisExtent) {
+            chartCtrl.addAxisExtent(attrs.axisExtent);
+        }
         // Trick to wait for all rendering of the DOM to be finished.
         $timeout(function () {
             chartCtrl.showGraph();
@@ -920,6 +924,7 @@ function C3Chart ($timeout) {
             "enableZoom": "@enableZoom",
             "rescaleZoom": "@rescaleZoom",
             "chartData": "=chartData",
+            "axisExtent": "=axisExtent",
             "chartColumns": "=chartColumns",
             "chartX": "=chartX",
             "callbackFunction": "&",
@@ -1066,6 +1071,7 @@ function ChartController($scope, $timeout) {
     this.addColumn = addColumn;
     this.addAxisProperties = addAxisProperties;
     this.rotateAxis = rotateAxis;
+    this.addAxisExtent = addAxisExtent;
     this.addPadding = addPadding;
     this.addSorting = addSorting;
     this.addInteractionEnabled = addInteractionEnabled;
@@ -1087,6 +1093,7 @@ function ChartController($scope, $timeout) {
     this.addTooltipNameFormatFunction = addTooltipNameFormatFunction;
     this.addTooltipValueFormatFunction = addTooltipValueFormatFunction;
     this.addTooltipContentFormatFunction = addTooltipContentFormatFunction;
+    this.addTooltipPositionFunction = addTooltipPositionFunction;
 
     this.addYAxis = addYAxis;
     this.addYTick = addYTick;
@@ -1170,6 +1177,7 @@ function ChartController($scope, $timeout) {
         $scope.transitionDuration = null;
         $scope.initialConfig = null;
         $scope.selection = null;
+        $scope.axis_extent_config = [];
     }
 
     function showGraph() {
@@ -1234,7 +1242,7 @@ function ChartController($scope, $timeout) {
         if ($scope.subchartOnBrushFunction){
             config.subchart = config.subchart || {};
             config.subchart.onbrush = $scope.subchartOnBrushFunction;
-        }           
+        }
         if ($scope.enableZoom && $scope.enableZoom === "true") {
             config.zoom = {"enabled": true};
         }
@@ -1292,6 +1300,10 @@ function ChartController($scope, $timeout) {
 
         if ($scope.tooltipContentFormatFunction) {
             config.tooltip.contents = $scope.tooltipContentFormatFunction;
+        }
+
+        if ($scope.tooltipPositionFunction) {
+            config.tooltip.position = $scope.tooltipPositionFunction;
         }
 
         if ($scope.chartSize != null) {
@@ -1408,6 +1420,12 @@ function ChartController($scope, $timeout) {
             };
         }
 
+        if ($scope.axis_extent_config.length) {
+            config.axis = config.axis || {};
+            config.axis.x = $scope.axis.x || {};
+            config.axis.x.extent = $scope.axis_extent_config;
+        }
+
         $scope.config = config;
 
         if ($scope.chartData && $scope.chartColumns) {
@@ -1510,6 +1528,12 @@ function ChartController($scope, $timeout) {
         $scope.padding[side] = parseInt(amount);
     }
 
+    function addAxisExtent(extent) {
+        if (extent.length === 2) {
+            $scope.axis_extent_config = extent;
+        }
+    }
+
     function addSorting(sorting) {
         $scope.sorting = sorting;
     }
@@ -1587,6 +1611,10 @@ function ChartController($scope, $timeout) {
 
     function addTooltipContentFormatFunction(tooltipContentFormatFunction) {
         $scope.tooltipContentFormatFunction = tooltipContentFormatFunction;
+    }
+
+    function addTooltipPositionFunction(tooltipPositionFunction) {
+        $scope.tooltipPositionFunction = tooltipPositionFunction;
     }
 
     function addSize(chartSize) {
@@ -1945,31 +1973,31 @@ angular.module('gridshore.c3js.chart')
 function ChartEvents() {
     var eventsLinker = function (scope, element, attrs, chartCtrl) {
         if (attrs.onInit) {
-            chartCtrl.addOnInitFunction(scope.onInit);
+            chartCtrl.addOnInitFunction(scope.onInit());
         }
         if (attrs.onMouseover) {
-            chartCtrl.addOnMouseoverFunction(scope.onMouseover);
+            chartCtrl.addOnMouseoverFunction(scope.onMouseover());
         }
         if (attrs.onMouseout) {
-            chartCtrl.addOnMouseoutFunction(scope.onMouseout);
+            chartCtrl.addOnMouseoutFunction(scope.onMouseout());
         }
         if (attrs.onResize) {
-            chartCtrl.addOnResizeFunction(scope.onResize);
+            chartCtrl.addOnResizeFunction(scope.onResize());
         }
         if (attrs.onResized) {
-            chartCtrl.addOnResizedFunction(scope.onResized);
+            chartCtrl.addOnResizedFunction(scope.onResized());
         }
         if (attrs.onRendered) {
-            chartCtrl.addOnRenderedFunction(scope.onRendered);
+            chartCtrl.addOnRenderedFunction(scope.onRendered());
         }
         if (attrs.onClickData) {
-            chartCtrl.addDataOnClickFunction(scope.onClickData);
+            chartCtrl.addDataOnClickFunction(scope.onClickData());
         }
         if (attrs.onMouseoverData) {
-            chartCtrl.addDataOnMouseoverFunction(scope.onMouseoverData);
+            chartCtrl.addDataOnMouseoverFunction(scope.onMouseoverData());
         }
         if (attrs.onMouseoutData) {
-            chartCtrl.addDataOnMouseoutFunction(scope.onMouseoutData);
+            chartCtrl.addDataOnMouseoutFunction(scope.onMouseoutData());
         }
     };
 
@@ -2608,7 +2636,7 @@ function ChartPoints () {
             if (!point.focus) {
                 pie.focus = {"expand":{}};
             }
-            point.focus.expand.r = parseInt(attrs.pointFocusRadius);
+            point.focus.expand.r = parseInt(attrs.pointExpandRadius);
         }
         if (attrs.pointRadius) {
             point.r = parseInt(attrs.pointRadius);
@@ -2943,7 +2971,9 @@ function ChartTooltip () {
         if (attrs.contentFormatFunction) {
             chartCtrl.addTooltipContentFormatFunction(scope.contentFormatFunction());
         }
-
+        if (attrs.positionFunction) {
+            chartCtrl.addTooltipPositionFunction(scope.positionFunction());
+        }
     };
 
     return {
@@ -2953,7 +2983,8 @@ function ChartTooltip () {
             "valueFormatFunction": "&",
             "nameFormatFunction": "&",
             "titleFormatFunction": "&",
-            "contentFormatFunction": "&"
+            "contentFormatFunction": "&",
+            "positionFunction": "&"
         },
         "replace": true,
         "link": tooltipLinker
